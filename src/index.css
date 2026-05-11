@@ -1,0 +1,116 @@
+:root {
+  --bg: #efe2c4;
+  --bg-deep: #e6d4a8;
+  --card: #fbf4e0;
+  --card-warm: #fef8ea;
+  --ink: #1a0f06;
+  --ink2: #3d2914;
+  --muted: #7a5a3a;
+  --hairline: rgba(60,30,10,0.10);
+  --primary: #a8320a;
+  --primary-dk: #7a1f00;
+  --accent: #d97a1f;
+  --foam: #fef8e8;
+  --green: #3d6b1f;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  font-family: 'Inter', -apple-system, system-ui, sans-serif;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+  height: 100%;
+}
+
+#root {
+  height: 100%;
+  max-width: 430px;
+  margin: 0 auto;
+  position: relative;
+  overflow: hidden;
+}
+
+button {
+  touch-action: manipulation;
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+}
+
+input, textarea {
+  font: inherit;
+  color: var(--ink);
+}
+
+input:focus, textarea:focus {
+  outline: none;
+}
+
+.screen {
+  height: 100dvh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  position: relative;
+  background: var(--bg);
+}
+
+.screen-inner {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.grain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.45;
+  background-image: radial-gradient(rgba(60,30,10,0.12) 1px, transparent 1px);
+  background-size: 14px 14px;
+}
+
+/* animations */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes sheetIn {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+@keyframes scrimIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(168, 50, 10, 0.4); }
+  50%       { box-shadow: 0 0 0 10px rgba(168, 50, 10, 0); }
+}
+
+@keyframes countBump {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+.anim-fade-up {
+  animation: fadeUp 0.35s ease both;
+}
+
+/* scrollbar hide */
+::-webkit-scrollbar { display: none; }
+* { scrollbar-width: none; }
