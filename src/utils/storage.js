@@ -1,3 +1,6 @@
+import { db } from '../firebase';
+import { ref, set, get, remove, onValue, off } from 'firebase/database';
+
 const KEYS = {
   user: 'bs_user',
   accounts: 'bs_accounts',
@@ -5,21 +8,26 @@ const KEYS = {
   onboarded: 'bs_onboarded',
 };
 
-function get(key) {
+function lsGet(key) {
   try { return JSON.parse(localStorage.getItem(key)); }
   catch { return null; }
 }
 
-function set(key, val) {
+function lsSet(key, val) {
   localStorage.setItem(key, JSON.stringify(val));
 }
 
-export function getUser() { return get(KEYS.user); }
-export function saveUser(user) { set(KEYS.user, user); }
+export function getUser() { return lsGet(KEYS.user); }
+export function saveUser(user) { lsSet(KEYS.user, user); }
 export function clearUser() { localStorage.removeItem(KEYS.user); }
 
-function getAccounts() { return get(KEYS.accounts) || {}; }
-function saveAccounts(a) { set(KEYS.accounts, a); }
+function getAccounts() { return lsGet(KEYS.accounts) || {}; }
+function saveAccounts(a) { lsSet(KEYS.accounts, a); }
+
+// Firebase key: email can't contain '.' or '@'
+function fbEmailKey(email) {
+  return email.toLowerCase().trim().replace(/\./g, '_').replace(/@/, '__');
+}
 
 export function findOrCreateAccount(email, name) {
   const accounts = getAccounts();
@@ -35,11 +43,26 @@ export function findOrCreateAccount(email, name) {
   return user;
 }
 
-export function hasOnboarded() { return !!get(KEYS.onboarded); }
-export function markOnboarded() { set(KEYS.onboarded, true); }
+// Sync account to Firebase (fire-and-forget)
+export async function syncAccount(user) {
+  if (!db) return;
+  try { await set(ref(db, `accounts/${fbEmailKey(user.email)}`), user); } catch {}
+}
 
-export function getSessions() { return get(KEYS.sessions) || []; }
-export function saveSessions(sessions) { set(KEYS.sessions, sessions); }
+// Fetch account from Firebase by email
+export async function fetchRemoteAccount(email) {
+  if (!db) return null;
+  try {
+    const snap = await get(ref(db, `accounts/${fbEmailKey(email)}`));
+    return snap.exists() ? snap.val() : null;
+  } catch { return null; }
+}
+
+export function hasOnboarded() { return !!lsGet(KEYS.onboarded); }
+export function markOnboarded() { lsSet(KEYS.onboarded, true); }
+
+export function getSessions() { return lsGet(KEYS.sessions) || []; }
+export function saveSessions(sessions) { lsSet(KEYS.sessions, sessions); }
 
 export function getSession(id) {
   return getSessions().find((s) => s.id === id) || null;
@@ -59,6 +82,37 @@ export function upsertSession(session) {
 
 export function deleteSession(id) {
   saveSessions(getSessions().filter((s) => s.id !== id));
+}
+
+// Sync session to Firebase (fire-and-forget)
+export async function syncSession(session) {
+  if (!db) return;
+  try { await set(ref(db, `sessions/${session.id}`), session); } catch {}
+}
+
+// Delete session from Firebase (fire-and-forget)
+export async function deleteSessionRemote(id) {
+  if (!db) return;
+  try { await remove(ref(db, `sessions/${id}`)); } catch {}
+}
+
+// Fetch session by code from Firebase
+export async function fetchSessionByCode(code) {
+  if (!db) return null;
+  try {
+    const snap = await get(ref(db, 'sessions'));
+    if (!snap.exists()) return null;
+    const all = Object.values(snap.val());
+    return all.find((s) => s.code === code.toUpperCase()) || null;
+  } catch { return null; }
+}
+
+// Realtime listener on a single session (for live updates in Session screen)
+export function subscribeToSession(sessionId, callback) {
+  if (!db) return () => {};
+  const r = ref(db, `sessions/${sessionId}`);
+  onValue(r, (snap) => { if (snap.exists()) callback(snap.val()); });
+  return () => off(r);
 }
 
 export function generateCode() {

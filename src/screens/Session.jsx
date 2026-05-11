@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { T, SIZES } from '../theme';
 import { useApp } from '../context/AppContext';
-import { getSession } from '../utils/storage';
+import { getSession, subscribeToSession, upsertSession } from '../utils/storage';
 import PintMark from '../components/PintMark';
 import Badge from '../components/Badge';
 import Btn from '../components/Btn';
@@ -53,6 +53,18 @@ export default function Session() {
   const reload = useCallback(() => {
     const s = getSession(id);
     if (s) setSession(s);
+  }, [id]);
+
+  // Realtime Firebase sync — updates session live on all devices
+  useEffect(() => {
+    const unsubscribe = subscribeToSession(id, (remote) => {
+      const local = getSession(id);
+      if (!local || JSON.stringify(remote) !== JSON.stringify(local)) {
+        upsertSession(remote);
+        setSession(remote);
+      }
+    });
+    return unsubscribe;
   }, [id]);
 
   const handleQuickAdd = () => {

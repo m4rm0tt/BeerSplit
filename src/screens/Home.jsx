@@ -82,6 +82,7 @@ export default function Home() {
   const navigate = useNavigate();
   const [code, setCode] = useState('');
   const [joinErr, setJoinErr] = useState('');
+  const [joining, setJoining] = useState(false);
 
   const now = new Date();
   const hour = now.getHours();
@@ -90,9 +91,11 @@ export default function Home() {
 
   const finished = sessions.filter((s) => s.status === 'finished').slice(0, 5);
 
-  const tryJoin = () => {
+  const tryJoin = async () => {
     if (code.length < 6) { setJoinErr('Code incomplet — 6 caractères.'); return; }
-    const s = joinSession(code, user?.name);
+    setJoining(true);
+    const s = await joinSession(code, user?.name);
+    setJoining(false);
     if (!s) { setJoinErr('Session introuvable ou terminée.'); return; }
     navigate(`/session/${s.id}`);
   };
@@ -220,8 +223,8 @@ export default function Home() {
             <div style={{ marginTop: 12, fontFamily: T.mono, fontSize: 11, color: T.muted, letterSpacing: 0.8 }}>
               6 caractères — demande-le à l'hôte
             </div>
-            <Btn onClick={tryJoin} style={{ marginTop: 14, height: 48, fontSize: 15 }} disabled={code.length < 6}>
-              Rejoindre
+            <Btn onClick={tryJoin} style={{ marginTop: 14, height: 48, fontSize: 15 }} disabled={code.length < 6 || joining}>
+              {joining ? 'Recherche…' : 'Rejoindre'}
             </Btn>
           </div>
         )}

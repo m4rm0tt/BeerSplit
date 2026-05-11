@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import {
   getUser, saveUser, clearUser,
   getSessions, upsertSession, getSession, getSessionByCode,
@@ -6,6 +6,8 @@ import {
   hasOnboarded, markOnboarded,
   generateCode, generateId,
   findOrCreateAccount,
+  syncSession, syncAccount, fetchRemoteAccount, fetchSessionByCode,
+  deleteSessionRemote,
 } from '../utils/storage';
 
 const Ctx = createContext(null);
@@ -17,14 +19,25 @@ export function AppProvider({ children }) {
 
   const refresh = useCallback(() => setSessions(getSessions()), []);
 
-  const login = useCallback((name, email, adminOverride = false) => {
+  // Login: check Firebase first so same email → same ID on all devices
+  const login = useCallback(async (name, email, adminOverride = false) => {
     if (adminOverride) {
       const adminUser = { id: 'beersplit-admin', name: 'Admin', email: 'admin@beersplit.local', isAdmin: true };
       saveUser(adminUser);
       setUserState(adminUser);
       return adminUser;
     }
-    const u = findOrCreateAccount(email, name);
+    // Try Firebase to get consistent account across devices
+    let u = await fetchRemoteAccount(email);
+    if (u) {
+      if (name && name !== u.name) u.name = name;
+      const accounts = JSON.parse(localStorage.getItem('bs_accounts') || '{}');
+      accounts[email.toLowerCase().trim()] = u;
+      localStorage.setItem('bs_accounts', JSON.stringify(accounts));
+    } else {
+      u = findOrCreateAccount(email, name);
+      syncAccount(u);
+    }
     saveUser(u);
     setUserState(u);
     return u;
@@ -58,18 +71,24 @@ export function AppProvider({ children }) {
       drinks: [],
     };
     upsertSession(session);
+    syncSession(session);
     refresh();
     return session;
   }, [user, refresh]);
 
-  const joinSession = useCallback((code, participantName) => {
-    const session = getSessionByCode(code);
-    if (!session) return null;
-    if (session.status !== 'active') return null;
+  // joinSession: checks local cache first, then Firebase
+  const joinSession = useCallback(async (code, participantName) => {
+    let session = getSessionByCode(code);
+    if (!session) {
+      session = await fetchSessionByCode(code);
+      if (session) upsertSession(session);
+    }
+    if (!session || session.status !== 'active') return null;
     const existingUser = user || { id: generateId(), name: participantName };
     if (!session.participants.find((p) => p.id === existingUser.id)) {
       session.participants.push({ id: existingUser.id, name: participantName || existingUser.name });
       upsertSession(session);
+      syncSession(session);
       refresh();
     }
     return session;
@@ -83,6 +102,7 @@ export function AppProvider({ children }) {
     const p = { id: generateId(), name };
     session.participants.push(p);
     upsertSession(session);
+    syncSession(session);
     refresh();
     return p;
   }, [refresh]);
@@ -92,6 +112,7 @@ export function AppProvider({ children }) {
     if (!session || session.status !== 'active') return;
     session.drinks.push({ id: generateId(), participantId, vol, ts: Date.now() });
     upsertSession(session);
+    syncSession(session);
     refresh();
   }, [refresh]);
 
@@ -103,6 +124,7 @@ export function AppProvider({ children }) {
     const realIdx = session.drinks.length - 1 - idx;
     session.drinks.splice(realIdx, 1);
     upsertSession(session);
+    syncSession(session);
     refresh();
   }, [refresh]);
 
@@ -112,6 +134,7 @@ export function AppProvider({ children }) {
     session.status = 'finished';
     session.endDate = Date.now();
     upsertSession(session);
+    syncSession(session);
     refresh();
     return session;
   }, [refresh]);
@@ -122,15 +145,21 @@ export function AppProvider({ children }) {
     session.participants = session.participants.filter((p) => p.id !== participantId);
     session.drinks = session.drinks.filter((d) => d.participantId !== participantId);
     upsertSession(session);
+    syncSession(session);
     refresh();
   }, [refresh]);
 
   const deleteSession = useCallback((sessionId) => {
     deleteSessionStorage(sessionId);
+    deleteSessionRemote(sessionId);
     refresh();
   }, [refresh]);
 
-  const activeSession = sessions.find((s) => s.status === 'active') || null;
+  // activeSession only counts if the current user is a participant
+  const activeSession = sessions.find((s) =>
+    s.status === 'active' &&
+    s.participants.some((p) => p.id === user?.id)
+  ) || null;
 
   return (
     <Ctx.Provider value={{

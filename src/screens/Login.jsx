@@ -12,6 +12,7 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [pass, setPass] = useState('');
   const [err, setErr] = useState('');
+  const [loading, setLoading] = useState(false);
   const { login } = useApp();
   const navigate = useNavigate();
 
@@ -22,16 +23,18 @@ export default function Login() {
     return null;
   };
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault();
     if (email.trim().toLowerCase() === 'admin' && pass === 'abc12321') {
-      login('Admin', 'admin@beersplit.local', true);
+      await login('Admin', 'admin@beersplit.local', true);
       navigate('/');
       return;
     }
     const error = validate();
     if (error) { setErr(error); return; }
-    login(mode === 'register' ? name.trim() : email.split('@')[0], email);
+    setLoading(true);
+    await login(mode === 'register' ? name.trim() : email.split('@')[0], email);
+    setLoading(false);
     navigate('/');
   };
 
@@ -84,11 +87,13 @@ export default function Login() {
 
           <div style={{ flex: 1, minHeight: 24 }} />
 
-          <Btn primary type="submit">
-            {mode === 'login' ? 'Se connecter' : 'Créer mon compte'}
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M3 8h10m-4-4 4 4-4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+          <Btn primary type="submit" disabled={loading}>
+            {loading ? 'Connexion…' : (mode === 'login' ? 'Se connecter' : 'Créer mon compte')}
+            {!loading && (
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M3 8h10m-4-4 4 4-4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
           </Btn>
 
           {mode === 'login' && (
