@@ -7,7 +7,7 @@ import Btn from '../components/Btn';
 import PintMark from '../components/PintMark';
 
 function computeSplit(session) {
-  const rate = session.volume > 0 ? session.price / session.volume : 0;
+  const rate = session.volume > 0 ? (session.price + (session.surcharge || 0)) / session.volume : 0;
   const map = {};
   session.participants.forEach((p) => { map[p.id] = { ...p, vol: 0, beers: 0, owed: 0 }; });
   session.drinks.forEach((d) => {
@@ -31,7 +31,8 @@ export default function Split() {
   const split = computeSplit(session);
   const totalDrunk = session.drinks.reduce((a, d) => a + d.vol, 0);
   const totalCollected = split.reduce((a, p) => a + p.owed, 0);
-  const fond = Math.max(0, session.price - totalCollected);
+  const effectivePrice = session.price + (session.surcharge || 0);
+  const fond = Math.max(0, effectivePrice - totalCollected);
   const durationMs = session.endDate ? session.endDate - session.startDate : 0;
   const durationH = Math.floor(durationMs / 3600000);
   const durationM = Math.floor((durationMs % 3600000) / 60000);
@@ -70,8 +71,13 @@ export default function Split() {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', position: 'relative' }}>
               <div>
-                <div style={{ fontFamily: T.mono, fontSize: 10, color: 'rgba(254,248,232,0.6)', letterSpacing: 1.4, textTransform: 'uppercase' }}>Prix du fût</div>
-                <div style={{ fontFamily: T.display, fontSize: 38, marginTop: 4, lineHeight: 1 }}>{session.price.toFixed(2)} €</div>
+                <div style={{ fontFamily: T.mono, fontSize: 10, color: 'rgba(254,248,232,0.6)', letterSpacing: 1.4, textTransform: 'uppercase' }}>Prix total</div>
+                <div style={{ fontFamily: T.display, fontSize: 38, marginTop: 4, lineHeight: 1 }}>{effectivePrice.toFixed(2)} €</div>
+                {session.surcharge > 0 && (
+                  <div style={{ fontFamily: T.mono, fontSize: 10, color: 'rgba(254,248,232,0.5)', marginTop: 3 }}>
+                    {session.price.toFixed(2)} + {session.surcharge.toFixed(2)} frais
+                  </div>
+                )}
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontFamily: T.mono, fontSize: 10, color: 'rgba(254,248,232,0.6)', letterSpacing: 1.4, textTransform: 'uppercase' }}>Collecté</div>
@@ -88,7 +94,7 @@ export default function Split() {
         <div style={{ padding: '0 24px 8px', display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
           <span style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: 1.6, color: T.muted, textTransform: 'uppercase' }}>Qui doit quoi</span>
           <span style={{ fontFamily: T.mono, fontSize: 10, color: T.muted }}>
-            {session.volume > 0 ? (session.price / session.volume * 0.25).toFixed(2) : '?'} €/bière · 25 cl
+            {session.volume > 0 ? (effectivePrice / session.volume * 0.25).toFixed(2) : '?'} €/bière · 25 cl
           </span>
         </div>
 

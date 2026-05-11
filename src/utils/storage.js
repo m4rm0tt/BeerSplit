@@ -1,5 +1,6 @@
 const KEYS = {
   user: 'bs_user',
+  accounts: 'bs_accounts',
   sessions: 'bs_sessions',
   onboarded: 'bs_onboarded',
 };
@@ -16,6 +17,23 @@ function set(key, val) {
 export function getUser() { return get(KEYS.user); }
 export function saveUser(user) { set(KEYS.user, user); }
 export function clearUser() { localStorage.removeItem(KEYS.user); }
+
+function getAccounts() { return get(KEYS.accounts) || {}; }
+function saveAccounts(a) { set(KEYS.accounts, a); }
+
+export function findOrCreateAccount(email, name) {
+  const accounts = getAccounts();
+  const key = email.toLowerCase().trim();
+  if (accounts[key]) {
+    if (name) accounts[key].name = name;
+    saveAccounts(accounts);
+    return accounts[key];
+  }
+  const user = { id: generateId(), name: name || email.split('@')[0], email: key };
+  accounts[key] = user;
+  saveAccounts(accounts);
+  return user;
+}
 
 export function hasOnboarded() { return !!get(KEYS.onboarded); }
 export function markOnboarded() { set(KEYS.onboarded, true); }
@@ -37,6 +55,10 @@ export function upsertSession(session) {
   if (idx >= 0) sessions[idx] = session;
   else sessions.unshift(session);
   saveSessions(sessions);
+}
+
+export function deleteSession(id) {
+  saveSessions(getSessions().filter((s) => s.id !== id));
 }
 
 export function generateCode() {

@@ -24,6 +24,11 @@ export default function Login() {
 
   const submit = (e) => {
     e.preventDefault();
+    if (email.trim().toLowerCase() === 'admin' && pass === 'abc12321') {
+      login('Admin', 'admin@beersplit.local', true);
+      navigate('/');
+      return;
+    }
     const error = validate();
     if (error) { setErr(error); return; }
     login(mode === 'register' ? name.trim() : email.split('@')[0], email);
@@ -68,7 +73,7 @@ export default function Login() {
           {mode === 'register' && (
             <Field label="PRÉNOM" value={name} onChange={setName} placeholder="Pierre" />
           )}
-          <Field label="EMAIL" value={email} onChange={setEmail} type="email" inputMode="email" placeholder="vous@exemple.fr" />
+          <Field label="EMAIL" value={email} onChange={setEmail} inputMode="email" placeholder="vous@exemple.fr" />
           <Field label="MOT DE PASSE" value={pass} onChange={setPass} type="password" placeholder="••••••••" />
 
           {err && (

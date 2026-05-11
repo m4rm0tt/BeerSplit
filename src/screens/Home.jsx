@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { T } from '../theme';
 import { useApp } from '../context/AppContext';
@@ -6,6 +6,66 @@ import PintMark from '../components/PintMark';
 import Badge from '../components/Badge';
 import Btn from '../components/Btn';
 import TabBar from '../components/TabBar';
+
+function CodeInput({ value, onChange, onSubmit, error }) {
+  const inputRef = useRef(null);
+
+  return (
+    <div>
+      <div
+        onClick={() => inputRef.current?.focus()}
+        style={{ position: 'relative', cursor: 'text', marginTop: 16 }}
+      >
+        {/* 6 visual character boxes */}
+        <div style={{ display: 'flex', gap: 6, pointerEvents: 'none' }}>
+          {Array.from({ length: 6 }).map((_, i) => {
+            const isCursor = i === value.length;
+            const filled  = i < value.length;
+            return (
+              <div key={i} style={{
+                flex: 1, height: 60, borderRadius: 12, background: T.cardWarm,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontFamily: T.display, fontSize: 26, color: T.ink,
+                boxShadow: isCursor
+                  ? `inset 0 0 0 2px ${T.primary}`
+                  : filled
+                    ? `inset 0 0 0 1.5px ${T.ink}`
+                    : `inset 0 0 0 1px ${T.hairline}`,
+                transition: 'box-shadow 0.15s',
+              }}>
+                {filled ? value[i] : ''}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Transparent real input — covers everything, triggers mobile keyboard */}
+        <input
+          ref={inputRef}
+          value={value}
+          onChange={(e) => onChange(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))}
+          onKeyDown={(e) => e.key === 'Enter' && onSubmit()}
+          inputMode="text"
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="characters"
+          spellCheck={false}
+          maxLength={6}
+          style={{
+            position: 'absolute', inset: 0,
+            opacity: 0, fontSize: 26,
+            background: 'transparent', border: 'none',
+            width: '100%', height: '100%',
+            cursor: 'text',
+          }}
+        />
+      </div>
+      {error && (
+        <div style={{ marginTop: 8, fontSize: 13, color: T.primary }}>{error}</div>
+      )}
+    </div>
+  );
+}
 
 function fmtDate(ts) {
   return new Date(ts).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
@@ -22,11 +82,6 @@ export default function Home() {
   const navigate = useNavigate();
   const [code, setCode] = useState('');
   const [joinErr, setJoinErr] = useState('');
-  const [guestName, setGuestName] = useState('');
-  const [showGuestModal, setShowGuestModal] = useState(false);
-  const [pendingSession, setPendingSession] = useState(null);
-  const inputRefs = useRef([]);
-  const codeArr = code.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6).split('');
 
   const now = new Date();
   const hour = now.getHours();
@@ -35,25 +90,9 @@ export default function Home() {
 
   const finished = sessions.filter((s) => s.status === 'finished').slice(0, 5);
 
-  const handleCodeKey = (i, e) => {
-    const char = e.key.toUpperCase();
-    if (/^[A-Z0-9]$/.test(char)) {
-      const arr = codeArr.slice();
-      arr[i] = char;
-      setCode(arr.join(''));
-      if (i < 5) inputRefs.current[i + 1]?.focus();
-    } else if (e.key === 'Backspace') {
-      const arr = codeArr.slice();
-      arr[i] = undefined;
-      setCode(arr.filter(Boolean).join(''));
-      if (i > 0) inputRefs.current[i - 1]?.focus();
-    }
-    e.preventDefault();
-  };
-
   const tryJoin = () => {
     if (code.length < 6) { setJoinErr('Code incomplet — 6 caractères.'); return; }
-    const s = joinSession(code, user?.name || guestName);
+    const s = joinSession(code, user?.name);
     if (!s) { setJoinErr('Session introuvable ou terminée.'); return; }
     navigate(`/session/${s.id}`);
   };
@@ -170,47 +209,18 @@ export default function Home() {
             <div style={{ fontFamily: T.display, fontSize: 24, marginTop: 12, letterSpacing: -0.3 }}>
               Code de session
             </div>
-            <div style={{ marginTop: 16, display: 'flex', gap: 6 }}>
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} style={{ flex: 1 }}>
-                  {i === 3 && (
-                    <div style={{ height: 56, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: T.display, fontSize: 22, color: T.muted }}>—</div>
-                  )}
-                  {i !== 3 && (
-                    <div
-                      ref={(el) => (inputRefs.current[i] = el)}
-                      tabIndex={0}
-                      onKeyDown={(e) => handleCodeKey(i, e)}
-                      onFocus={(e) => e.target.style.boxShadow = `inset 0 0 0 2px ${T.primary}`}
-                      onBlur={(e) => e.target.style.boxShadow = `inset 0 0 0 1.5px ${codeArr[i] ? T.ink : T.hairline}`}
-                      style={{
-                        height: 56, borderRadius: 12, background: T.cardWarm,
-                        boxShadow: `inset 0 0 0 1.5px ${codeArr[i] ? T.ink : T.hairline}`,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontFamily: T.display, fontSize: 24, color: T.ink,
-                        cursor: 'text', userSelect: 'none',
-                      }}
-                    >
-                      {codeArr[i] || ''}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-            {/* Hidden real input for mobile keyboard */}
-            <input
+
+            <CodeInput
               value={code}
-              onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))}
-              onFocus={() => inputRefs.current[code.length]?.focus?.()}
-              style={{ position: 'absolute', opacity: 0, width: 1, height: 1, pointerEvents: 'none' }}
-              inputMode="text"
-              maxLength={6}
+              onChange={(v) => { setCode(v); setJoinErr(''); }}
+              onSubmit={tryJoin}
+              error={joinErr}
             />
-            {joinErr && <div style={{ marginTop: 8, fontSize: 13, color: T.primary }}>{joinErr}</div>}
+
             <div style={{ marginTop: 12, fontFamily: T.mono, fontSize: 11, color: T.muted, letterSpacing: 0.8 }}>
               6 caractères — demande-le à l'hôte
             </div>
-            <Btn onClick={tryJoin} style={{ marginTop: 14, height: 48, fontSize: 15 }}>
+            <Btn onClick={tryJoin} style={{ marginTop: 14, height: 48, fontSize: 15 }} disabled={code.length < 6}>
               Rejoindre
             </Btn>
           </div>

@@ -2,8 +2,10 @@ import { createContext, useContext, useState, useCallback } from 'react';
 import {
   getUser, saveUser, clearUser,
   getSessions, upsertSession, getSession, getSessionByCode,
+  deleteSession as deleteSessionStorage,
   hasOnboarded, markOnboarded,
   generateCode, generateId,
+  findOrCreateAccount,
 } from '../utils/storage';
 
 const Ctx = createContext(null);
@@ -15,8 +17,14 @@ export function AppProvider({ children }) {
 
   const refresh = useCallback(() => setSessions(getSessions()), []);
 
-  const login = useCallback((name, email) => {
-    const u = { id: generateId(), name, email };
+  const login = useCallback((name, email, adminOverride = false) => {
+    if (adminOverride) {
+      const adminUser = { id: 'beersplit-admin', name: 'Admin', email: 'admin@beersplit.local', isAdmin: true };
+      saveUser(adminUser);
+      setUserState(adminUser);
+      return adminUser;
+    }
+    const u = findOrCreateAccount(email, name);
     saveUser(u);
     setUserState(u);
     return u;
@@ -41,6 +49,7 @@ export function AppProvider({ children }) {
       abv: data.abv || '',
       volume: data.volume,
       price: data.price,
+      surcharge: data.surcharge || 0,
       startDate: Date.now(),
       endDate: null,
       status: 'active',
@@ -107,6 +116,20 @@ export function AppProvider({ children }) {
     return session;
   }, [refresh]);
 
+  const removeParticipant = useCallback((sessionId, participantId) => {
+    const session = getSession(sessionId);
+    if (!session) return;
+    session.participants = session.participants.filter((p) => p.id !== participantId);
+    session.drinks = session.drinks.filter((d) => d.participantId !== participantId);
+    upsertSession(session);
+    refresh();
+  }, [refresh]);
+
+  const deleteSession = useCallback((sessionId) => {
+    deleteSessionStorage(sessionId);
+    refresh();
+  }, [refresh]);
+
   const activeSession = sessions.find((s) => s.status === 'active') || null;
 
   return (
@@ -117,6 +140,7 @@ export function AppProvider({ children }) {
       activeSession,
       createSession, joinSession, addParticipant,
       addDrink, undoLastDrink, finishSession,
+      removeParticipant, deleteSession,
       getSession,
     }}>
       {children}

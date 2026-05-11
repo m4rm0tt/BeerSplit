@@ -8,7 +8,7 @@ import Badge from '../components/Badge';
 import Btn from '../components/Btn';
 
 function computeLeaderboard(session) {
-  const rate = session.volume > 0 ? session.price / session.volume : 0;
+  const rate = session.volume > 0 ? (session.price + (session.surcharge || 0)) / session.volume : 0;
   const map = {};
   session.participants.forEach((p) => { map[p.id] = { ...p, vol: 0, beers: 0, owed: 0 }; });
   session.drinks.forEach((d) => {
@@ -29,7 +29,7 @@ function pct(session) {
 export default function Session() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user, addDrink, undoLastDrink, finishSession, refresh } = useApp();
+  const { user, addDrink, undoLastDrink, finishSession, removeParticipant, refresh } = useApp();
   const [session, setSession] = useState(() => getSession(id));
   const [showSheet, setShowSheet] = useState(false);
   const [selectedSize, setSelectedSize] = useState('demi');
@@ -38,6 +38,8 @@ export default function Session() {
   const [undoVisible, setUndoVisible] = useState(false);
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [showManage, setShowManage] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(null);
   const undoTimer = useRef(null);
   const pressTimer = useRef(null);
 
@@ -106,7 +108,8 @@ export default function Session() {
   const drunk = session.drinks.reduce((a, d) => a + d.vol, 0);
   const remaining = Math.max(0, session.volume - drunk);
   const pctVal = pct(session);
-  const rate = session.volume > 0 ? session.price / session.volume : 0;
+  const effectivePrice = session.price + (session.surcharge || 0);
+  const rate = session.volume > 0 ? effectivePrice / session.volume : 0;
   const myEntry = lb.find((p) => p.id === user?.id);
 
   return (
@@ -189,7 +192,10 @@ export default function Session() {
       {/* Leaderboard mini */}
       <div style={{ position: 'relative', padding: '0 24px 8px', display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
         <span style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: 1.6, color: T.muted, textTransform: 'uppercase' }}>Le classement</span>
-        <span onClick={() => navigate(`/leaderboard/${id}`)} style={{ fontSize: 13, color: T.primary, fontWeight: 500, cursor: 'pointer' }}>Tout voir →</span>
+        <div style={{ display: 'flex', gap: 14 }}>
+          <span onClick={() => setShowManage(true)} style={{ fontSize: 13, color: T.muted, fontWeight: 500, cursor: 'pointer' }}>Gérer →</span>
+          <span onClick={() => navigate(`/leaderboard/${id}`)} style={{ fontSize: 13, color: T.primary, fontWeight: 500, cursor: 'pointer' }}>Tout voir →</span>
+        </div>
       </div>
 
       <div style={{ position: 'relative', padding: '0 16px 100px' }}>
@@ -364,6 +370,87 @@ export default function Session() {
             <Btn primary onClick={handleAddFromSheet} style={{ marginTop: 22 }}>
               Compter la bière
             </Btn>
+          </div>
+        </div>
+      )}
+
+      {/* Manage participants sheet */}
+      {showManage && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+          <div onClick={() => setShowManage(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(20,12,6,0.5)', animation: 'scrimIn 0.2s ease' }} />
+          <div style={{
+            position: 'relative', background: T.bg, borderRadius: '28px 28px 0 0',
+            padding: `16px 24px calc(env(safe-area-inset-bottom,0px) + 36px)`,
+            boxShadow: '0 -20px 40px rgba(0,0,0,0.2)',
+            animation: 'sheetIn 0.3s cubic-bezier(0.32,0.72,0,1)',
+          }}>
+            <div style={{ width: 40, height: 4, background: T.hairline, borderRadius: 2, margin: '0 auto 20px' }} />
+            <div style={{ fontFamily: T.display, fontSize: 28, marginBottom: 18 }}>Participants</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {session.participants.map((p) => (
+                <div key={p.id} style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  background: T.cardWarm, borderRadius: 14, padding: '12px 16px',
+                  boxShadow: `inset 0 0 0 1px ${T.hairline}`,
+                }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 18, background: T.bgDeep, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: T.display, fontSize: 16, color: T.ink2 }}>
+                    {p.name[0]}
+                  </div>
+                  <div style={{ flex: 1, fontSize: 15, fontWeight: 600 }}>
+                    {p.name}
+                    {p.id === session.hostId && <span style={{ fontFamily: T.mono, fontSize: 10, color: T.muted, marginLeft: 8, letterSpacing: 0.8 }}>HÔTE</span>}
+                  </div>
+                  {p.id !== session.hostId && (
+                    <button onClick={() => setConfirmRemove(p)} style={{
+                      width: 32, height: 32, borderRadius: 16, background: '#fde8e4',
+                      border: `1px solid ${T.primary}40`, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+                        <path d="M2 4h12M5 4V2h6v2M6 7v5M10 7v5M3 4l1 10h8l1-10" stroke={T.primary} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm remove participant */}
+      {confirmRemove && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 250, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+          <div onClick={() => setConfirmRemove(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(20,12,6,0.5)' }} />
+          <div style={{
+            position: 'relative', background: T.bg, borderRadius: '28px 28px 0 0',
+            padding: `24px 24px calc(env(safe-area-inset-bottom,0px) + 36px)`,
+            boxShadow: '0 -20px 40px rgba(0,0,0,0.2)',
+          }}>
+            <div style={{ fontFamily: T.display, fontSize: 28, marginBottom: 10 }}>Retirer {confirmRemove.name} ?</div>
+            <p style={{ fontSize: 14, color: T.muted, lineHeight: 1.5, marginBottom: 24 }}>
+              Toutes les bières comptées pour {confirmRemove.name} seront supprimées. Cette action est irréversible.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <button onClick={() => {
+                removeParticipant(id, confirmRemove.id);
+                if (selectedFor === confirmRemove.id) setSelectedFor(user?.id || session.participants[0]?.id);
+                setConfirmRemove(null);
+                setShowManage(false);
+                reload();
+              }} style={{
+                height: 52, borderRadius: 16, background: T.primary, color: T.foam,
+                border: 'none', cursor: 'pointer', fontFamily: T.sans, fontSize: 16, fontWeight: 600,
+              }}>
+                Oui, retirer
+              </button>
+              <button onClick={() => setConfirmRemove(null)} style={{
+                height: 52, borderRadius: 16, background: T.card, color: T.ink,
+                border: `1px solid ${T.hairline}`, cursor: 'pointer', fontFamily: T.sans, fontSize: 16, fontWeight: 500,
+              }}>
+                Annuler
+              </button>
+            </div>
           </div>
         </div>
       )}

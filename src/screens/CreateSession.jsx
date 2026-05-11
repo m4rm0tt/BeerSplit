@@ -22,6 +22,7 @@ export default function CreateSession() {
   const [abv, setAbv] = useState('');
   const [volume, setVolume] = useState(30);
   const [price, setPrice] = useState('');
+  const [surcharge, setSurcharge] = useState('');
   const [participants, setParticipants] = useState([]);
   const [newName, setNewName] = useState('');
   const [err, setErr] = useState('');
@@ -50,7 +51,7 @@ export default function CreateSession() {
   };
 
   const handleCreate = () => {
-    const session = createSession({ brewery, beer, abv, volume, price: parseFloat(price) });
+    const session = createSession({ brewery, beer, abv, volume, price: parseFloat(price), surcharge: parseFloat(surcharge) || 0 });
     participants.forEach((name) => contextAddParticipant(session.id, name));
     navigate(`/session/${session.id}`);
   };
@@ -159,6 +160,32 @@ export default function CreateSession() {
                   }}
                 />
                 <span style={{ fontFamily: T.display, fontSize: 28, color: T.muted }}>€</span>
+              </div>
+            </div>
+
+            {/* Surcharge */}
+            <div style={{ background: T.card, borderRadius: 20, padding: 20, boxShadow: `inset 0 0 0 1px ${T.hairline}` }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+                <div style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: 1.4, color: T.muted, textTransform: 'uppercase' }}>
+                  Frais additionnels
+                </div>
+                <div style={{ fontFamily: T.mono, fontSize: 10, color: T.muted, opacity: 0.7 }}>optionnel</div>
+              </div>
+              <div style={{ fontSize: 12, color: T.muted, marginTop: 4, marginBottom: 10, lineHeight: 1.4 }}>
+                Location du fût, caution, livraison…
+              </div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                <input
+                  value={surcharge}
+                  onChange={(e) => setSurcharge(e.target.value)}
+                  placeholder="0"
+                  inputMode="decimal"
+                  style={{
+                    fontFamily: T.display, fontSize: 36, lineHeight: 0.95, letterSpacing: -1,
+                    background: 'none', border: 'none', color: T.ink, width: '100%',
+                  }}
+                />
+                <span style={{ fontFamily: T.display, fontSize: 22, color: T.muted }}>€</span>
               </div>
             </div>
 
